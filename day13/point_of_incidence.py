@@ -36,8 +36,9 @@ def find_mirror_line(patch) :
     candidates = []
     depths = []
     for i, (this, next) in enumerate(zip(patch, patch[1:])) :
-        if this == next :
-            found, depth = search_outward(patch, i)
+        diff =  string_compare(this, next, 1)
+        if diff <= 1 :
+            found, depth = search_outward(patch, i, 1)
             if found :
                 candidates.append(i)
                 depths.append(depth)
@@ -54,7 +55,17 @@ def find_mirror_line(patch) :
 
     return ret
 
-def search_outward(patch, line) :
+def string_compare(str1, str2, limit) :
+    diff = 0
+    for c1, c2 in zip(str1, str2) :
+        if c1 != c2 :
+            diff += 1
+        if diff > limit :
+            return limit
+
+    return diff
+
+def search_outward(patch, line, limit) :
     # height = len(patch) - 1
     # search_depth = min(abs(line - height), line)
 
@@ -68,8 +79,9 @@ def search_outward(patch, line) :
     # return True, search_depth
     height = len(patch)
     search_depth = 0
+    diff = 0
 
-    for i in range(1, height):
+    for i in range(0, height):
         search_depth += 1
 
         lower = line - i
@@ -81,30 +93,32 @@ def search_outward(patch, line) :
         top = patch[lower]
         bottom = patch[upper]
 
-        if bottom != top :
+        diff += string_compare(top, bottom, limit)
+
+        if diff > 1 :
             return False, search_depth
 
-    return True, search_depth
+    if diff == 1 :
+        return True, search_depth
+
+    return False, search_depth
 
 
 
 def main() :
-    patches = read_input("day13/input")
-
-    print_patch(patches[-1])
+    patches = read_input("day13/example")
 
     totals = []
     for patch in patches :
         rows = 0
         columns = 0
-        # print("Before")s
-        # print_patch(patch)
+        print("Before")
+        print_patch(patch)
         rows = find_mirror_line(patch)
 
-        # if columns == 0 :
         patch = transpose(patch)
-        # print("After:")
-        # print_patch(patch)
+        print("After:")
+        print_patch(patch)
         columns = find_mirror_line(patch)
 
         if columns != 0 :
