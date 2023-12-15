@@ -2,25 +2,26 @@
 def roll_the_rocks(rock_line : str) :
 
     last_was_square_rock = True
-    rock_sack = []
-    fault_lines = []
+    rock_sack = [0]
+    square_rocks = [-1]
     for i, c in enumerate(rock_line):
         if c == "#":
+            square_rocks.append(i)
             last_was_square_rock = True
         if c == "O" or c == "." :
             if last_was_square_rock :
                 last_was_square_rock = False
-                fault_lines.append(i)
                 rock_sack.append(0)
         if c == "O":
             rock_sack[-1] += 1
 
-    fault_lines.append(len(rock_line) + 1)
+    square_rocks.append(len(rock_line))
+    rock_sack.append(0)
 
     new_rock_line = ""
-    for rocks, fault_line, next_line in zip(rock_sack, fault_lines, fault_lines[1:]) :
-        length = next_line - fault_line
-        if fault_line != 0 :
+    for rocks, square_rock, next_square_rock in zip(rock_sack, square_rocks, square_rocks[1:]) :
+        length = next_square_rock - square_rock
+        if square_rock >= 0 :
             new_rock_line += "#"
         new_rock_line += "".join('O'*rocks) + "".join('.'*(length - rocks - 1))
 
