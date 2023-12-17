@@ -24,11 +24,13 @@ class Beam:
         'D' : 'L'
 }
     visited = set()
+    exits = set()
 
     def __init__(self, position, direction, map) -> None:
         self.direction = direction
         self.position = position
-        self.visited.update([(position, direction)])
+        self.visited = set()
+        self.exits = set()
         self.map = map
         self.active = True
 
@@ -51,6 +53,7 @@ class Beam:
 
         if not self.__withinMap((x, y)) :
             self.active = False
+            self.exits.update([(x, y)])
             return None
 
         self.position = (x, y)
@@ -88,7 +91,7 @@ class Beam:
         spawn = None
         if spawn_direction :
             if (self.position, spawn_direction) not in self.visited :
-                spawn = copy.deepcopy(self)
+                spawn = copy.copy(self)
                 spawn.direction = spawn_direction
                 spawn.visited.update([(spawn.position, spawn.direction)])
 
@@ -105,7 +108,16 @@ class Beam:
         self.active = False
 
     def energized(self):
+        positions = set()
+        for position, _ in self.visited :
+            positions.update([position])
+        return len(positions)
+
+    def getVisited(self) :
         return self.visited
+
+    def getExits(self) :
+        return self.exits
 
 def read_file(file) :
     with open(file) as f:
@@ -117,48 +129,13 @@ def read_file(file) :
         mirror_map.append(row)
     return mirror_map
 
-def print_map(mirror_map, beams : [Beam]):
-    visited = set()
+def beam_from(position, direction, mirror_map) :
 
-    for beam in beams :
-        visited.update(beam.energized())
-
-    mirror_map = copy.deepcopy(mirror_map)
-    for position, _ in visited :
-        x, y = position
-        if mirror_map[y][x] == '.' :
-            mirror_map[y][x] = 'x'
-    for row in mirror_map:
-        line = ''.join([c for c in row])
-        print(line)
-
-def all_visited(beams) :
-    visited = set()
-    for beam in beams :
-        energy = beam.energized()
-        for position, _ in energy :
-            visited.update([position])
-    return visited
-
-def print_status_bar(beams, last_n_beams, last_n_active,) :
-        n_beams = len(beams)
-        n_actve = sum([1 for beam in beams if beam.canMove()])
-        print(f"Beams: {n_beams:6}  Active: {n_actve:6}/{n_beams:6} Beam_rate: {n_beams - last_n_beams:6} Active rate:{n_actve - last_n_active:6}", end='\r')
-        return n_beams, n_actve
-
-def main() :
-    mirror_map = read_file("day16/input")
-    print_map(mirror_map, [])
-    print('')
-
-    beam = Beam((-1, 0), 'R', mirror_map)
+    beam = Beam(position, direction, mirror_map)
     beams = [beam]
 
-    last_n_beams = 0
-    last_n_active = 0
     active = True
     while active :
-        last_n_beams, last_n_active = print_status_bar(beams, last_n_beams, last_n_active)
 
         new_beams = []
         for beam in beams :
@@ -171,17 +148,30 @@ def main() :
 
         beams.extend(new_beams)
 
-    last_n_beams, last_n_active = print_status_bar(beams, last_n_beams, last_n_active)
+    return beams[0].energized(), beams[0].getExits()
 
-    print('')
-    visited = all_visited(beams)
-    print(len(visited))
+def main() :
+    mirror_map = read_file("day16/input")
 
-    print_map(mirror_map, beams)
-    print('')
+    # Always start from outside, if the first position contains a mirror.
+    energy, _ = beam_from((-1, 0), 'R', mirror_map)
+    print(f"Part 1: {energy}")
 
-    # Remove one, since we started outside the grid.
-    print(len(visited) - 1)
+    starts =      dict([((-1, i) ,                'R') for i in range(1, len(mirror_map))])
+    starts.update(dict([((len(mirror_map[0]), i), 'L') for i in range(len(mirror_map))]))
+    starts.update(dict([((i, -1),                 'D') for i in range(len(mirror_map[0]))]))
+    starts.update(dict([((i, len(mirror_map)),    'U') for i in range(len(mirror_map[0]))]))
+
+    energies = [energy]
+    while len(starts) :
+        pos, dir = starts.popitem()
+        energized, exits = beam_from(pos, dir, mirror_map)
+        energies.append(energized)
+        for pos in exits :
+            if pos in starts :
+                del starts[pos]
+
+    print(f"Part 2: {max(energies)}")
 
 if __name__ == '__main__' :
     main()
