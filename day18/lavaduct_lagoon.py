@@ -20,8 +20,8 @@ dir_ds = {
     "U" : (0, -1),
 }
 
-def calculate_positions(directions, lengths) :
-    positions = [(1, 1)]
+def calculate_positions_line(directions, lengths) :
+    positions = [(0, 0)]
     for dir, l in zip(directions, lengths) :
         ds = dir_ds[dir]
 
@@ -36,14 +36,38 @@ def calculate_positions(directions, lengths) :
 
     return positions
 
+def calculate_positions(directions, lengths) :
+    positions = [(0, 0)]
+    for dir, l in zip(directions, lengths) :
+        ds = dir_ds[dir]
+
+        last_pos = positions[-1]
+        lx, ly  = last_pos
+
+        dx, dy = ds
+        x, y = lx + dx * l, ly + dy * l
+
+        positions.append((x, y))
+
+    return positions
+
+def area_by_shoelace(points):
+    x, y = zip(*points)
+    "Assumes x,y points go around the polygon in one direction"
+    return abs( sum(i * j for i, j in zip(x,             y[1:] + y[:1]))
+               -sum(i * j for i, j in zip(x[1:] + x[:1], y            ))) / 2
+
+# def border_area(directions, lengths) :
+#     return len(calculate_positions_line(directions, lengths))
+
 def print_map(dig_map) :
     for row in dig_map :
         print(''.join([c for c in row]))
 
-def mark_plan(dig_map, positions, offset):
+def mark_plan(dig_map, positions, offset, token):
     dx, dy = offset
     for x, y in positions:
-        dig_map[y + dy][x + dx] = '#'
+        dig_map[y + dy][x + dx] = token
     return dig_map
 
 def flood_fill(dig_map, start, token) :
@@ -91,23 +115,64 @@ def count_dig_area(dig_map, tokens) :
                 count += 1
     return count
 
+color_to_dir = {
+    "0" : 'R',
+    '1' : 'D',
+    '2' : 'L',
+    '3' : 'U'
+}
+
+def color_to_instructions(colors):
+    directions, lengths = [], []
+    for color in colors:
+        dir = color[-2]
+        length = color[2:-2]
+
+        directions.append(color_to_dir[dir])
+        lengths.append(int(length, 16))
+    return directions, lengths
+
+def calculate_border_area(points) :
+    length = 1
+    for pos0, pos1 in zip(points[:],points[1:]) :
+        x0, y0 = pos0
+        x1, y1 = pos1
+        dx = abs(x0 - x1)
+        dy = abs(y0 - y1)
+        length += dx + dy
+    return (length + 1) / 2
 
 def main() :
-    directions, lengths, _ = read_data("day18/input")
+    directions, lengths, colors = read_data("day18/input")
 
-    positions = calculate_positions(directions, lengths)
+    positions = calculate_positions_line(directions, lengths)
 
     (size_x, size_y), offset = find_grid_size(positions)
 
     dig_map = [['.' for _ in range(size_x)] for _ in range(size_y)]
-    dig_map = mark_plan(dig_map, positions, offset)
+    dig_map = mark_plan(dig_map, positions, offset, '*')
 
 
     dig_map = flood_fill(dig_map,(0, 0), '.')
-    area = count_dig_area(dig_map, set(['#', '.']))
+    area = count_dig_area(dig_map, set(['#', '.', '*']))
+
+    points = calculate_positions(directions, lengths)
+    dig_map = mark_plan(dig_map, points, offset, '#')
 
     print_map(dig_map)
     print(f"Part 1 : {area}")
+
+    ## Part 2. To big for flood fill. Let's use Shoe Lace
+
+    directions, lengths = color_to_instructions(colors)
+
+    points = calculate_positions(directions, lengths)
+    border_area = calculate_border_area(points)
+
+    area = area_by_shoelace(points)
+    area += border_area
+    print(f"Part 2 : {area}")
+
 
 if __name__ == '__main__' :
     main()
