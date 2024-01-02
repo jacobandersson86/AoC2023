@@ -90,15 +90,21 @@ class World():
 
     def nCanBeDisintegrated(self) :
         disintegratable = []
+        must_keep = []
         for i, brick in enumerate(self.bricks) :
+            c = chr((0x41 + i % 24))
             # More than one is supporting this brick
             bricksBelow = self.supportingBelow(brick)
             if len(bricksBelow) >= 2 :
                 disintegratable.extend(bricksBelow)
+            elif len(bricksBelow) == 1 :
+                must_keep.extend(bricksBelow)
             # This brick doesn't support any brick
-            elif self.nSupportingAbove(brick) == 0 :
+            if self.nSupportingAbove(brick) == 0 :
                 disintegratable.append(brick)
-        return len(set(disintegratable))
+
+        disintegratable = set(disintegratable)
+        return len(disintegratable.difference(must_keep))
 
     def print_xz(self) :
         max_x, max_z = 0, 0
@@ -169,7 +175,7 @@ def read_data(file):
     return shapes, positions
 
 def main() :
-    shapes, positions = read_data('day22/example')
+    shapes, positions = read_data('day22/input')
 
     bricks = [Brick(shape, position) for shape, position in zip(shapes, positions)]
 
@@ -182,5 +188,3 @@ def main() :
 
 if __name__ == '__main__' :
     main()
-
-# 490 is too high
