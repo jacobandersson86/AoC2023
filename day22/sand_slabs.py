@@ -1,4 +1,5 @@
 from functools import cmp_to_key
+import copy
 
 class Brick() :
     def __init__(self, shape, position) -> None:
@@ -52,10 +53,16 @@ class World():
     def __init__(self, bricks : list[Brick]) -> None:
         self.bricks = sorted(bricks, key=cmp_to_key(sortZLevel))
 
+    def remove(self, brick : Brick) :
+        self.bricks.remove(brick)
+
     def ground(self):
+        self.bricks = sorted(self.bricks, key=cmp_to_key(sortZLevel))
         # Push first brick to ground (which is at z = 1)
         _, _, z = self.bricks[0].position
         self.bricks[0].move(1 - z)
+
+        n_moved = 0
 
         grounded_bricks = [self.bricks[0]]
         for brick in self.bricks[1:]:
@@ -67,8 +74,13 @@ class World():
                 if brick.isOnTop(grounded_brick) :
                     grounded_brick.top_z_level - z
                     dz = max(dz, grounded_brick.top_z_level - z)
-            brick.move(dz)
+
+            if dz != 0 :
+                n_moved += 1
+                brick.move(dz)
             grounded_bricks.append(brick)
+        return n_moved
+
 
     def nSupportingAbove(self, bottomBrick : Brick) :
         n = 0
@@ -88,7 +100,7 @@ class World():
                     bricksBelow.append(brick)
         return bricksBelow
 
-    def nCanBeDisintegrated(self) :
+    def canBeDisintegrated(self) :
         disintegratable = []
         must_keep = []
         for i, brick in enumerate(self.bricks) :
@@ -104,7 +116,7 @@ class World():
                 disintegratable.append(brick)
 
         disintegratable = set(disintegratable)
-        return len(disintegratable.difference(must_keep))
+        return disintegratable.difference(must_keep)
 
     def print_xz(self) :
         max_x, max_z = 0, 0
@@ -175,7 +187,7 @@ def read_data(file):
     return shapes, positions
 
 def main() :
-    shapes, positions = read_data('day22/input')
+    shapes, positions = read_data('day22/example')
 
     bricks = [Brick(shape, position) for shape, position in zip(shapes, positions)]
 
@@ -183,7 +195,23 @@ def main() :
     world.ground()
     world.print_xz()
     world.print_yz()
-    print(f"Part 1: {world.nCanBeDisintegrated()}")
+    removable_bricks = world.canBeDisintegrated()
+    print(f"Part 1: {len(removable_bricks)}")
+
+    non_removables = set(bricks).difference(removable_bricks)
+
+    n_moved = 0
+    for brick in non_removables :
+        new_world = World(bricks)
+        new_world.ground()
+        new_world.remove(brick)
+        n_moved += new_world.ground()
+        new_world.print_xz()
+        new_world.print_yz()
+
+    print(n_moved)
+
+
 
 
 if __name__ == '__main__' :
