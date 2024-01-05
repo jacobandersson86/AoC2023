@@ -1,4 +1,4 @@
-
+import copy
 class Path() :
     ds = [(1, 0), (0, 1), (-1, 0), (0, -1)]
     forbidden = {
@@ -8,10 +8,14 @@ class Path() :
         ( 0,  1) : 'v',
     }
 
-    def __init__(self, startingPoint, firstStep, distance, forrestMap) -> None:
+    def __init__(self, startingPoint, firstStep, distance, forrestMap, longestVisited = []) -> None:
         self.startingPoint = startingPoint
         self.firstStep = firstStep
-        self.visited = [startingPoint, firstStep]
+
+        self.visited = []
+        self.visited.extend(longestVisited[:])
+        self.visited.extend([startingPoint, firstStep])
+
         self.forrestMap = forrestMap
         self.distance = distance + 1
 
@@ -49,7 +53,7 @@ class Path() :
         next_steps = self._tryStep()
 
         # Remove where we came from
-        next_steps = list(set(next_steps).difference([self.visited[-2]]))
+        next_steps = list(set(next_steps).difference(self.visited))
 
         # Check if we are at a fork (which means we have more than one opportunity)
         if len(next_steps) > 1 :
@@ -62,7 +66,9 @@ class Path() :
 
         # We might be at the goal (or dead end)
         if len(next_steps) == 0 :
-            return True, (self.visited[-1])
+            if self.visited[-1] == (len(self.forrestMap[0]) - 2, len(self.forrestMap) - 1) :
+                return True, (self.visited[-1])
+            return False, (self.visited[-1])
 
         # Okay, only one way to go, take the step.
         self.visited.append(next_steps[0])
@@ -83,14 +89,16 @@ class Path() :
 class Trailfork() :
     ds = [(1, 0), (0, 1), (-1, 0), (0, -1)]
 
-    def __init__(self, position, distance, enteringPath, forrestMap) -> None:
+    def __init__(self, position, distance, enteringPath : Path, forrestMap) -> None:
         self.position = position
         self.distance = distance
-        self.enteringPath = enteringPath
 
-        self.attachingPaths = []
+        self.enteringPaths = []
+        self.longestVisited = []
         if enteringPath :
-            self.attachingPaths.append(enteringPath)
+            self.enteringPaths.append(enteringPath)
+            self.longestVisited = enteringPath.visited
+
 
         self.forrestMap = forrestMap
 
@@ -99,15 +107,17 @@ class Trailfork() :
         possible_steps = set(self.tryStep())
 
         # Remove steps that we came from
-        for path in self.attachingPaths :
+        for path in self.enteringPaths :
             possible_steps = possible_steps.difference(path.visited)
+
+        # Remove paths that means that we step on a visited place
+        possible_steps = possible_steps.difference(self.longestVisited)
 
         # Return a new path for each direction due to be explored
         new_paths = []
         for step in possible_steps :
-            new_paths.append(Path(self.position, step, self.distance, self.forrestMap))
+            new_paths.append(Path(self.position, step, self.distance, self.forrestMap, self.longestVisited))
 
-        self.attachingPaths.extend(new_paths)
         return new_paths
 
 
@@ -130,11 +140,12 @@ class Trailfork() :
 
 
     def updateDistance(self, path : Path) :
-        self.attachingPaths.append(path)
+        self.enteringPaths.append(path)
 
         # If the new distance is greater, wipe attaching paths, and rediscover
-        if path.distance > self.distance :
-            self.attachingPaths = [path]
+        if path.distance >= self.distance :
+            self.enteringPaths = [path]
+            self.longestVisited = path.visited
             self.distance = path.distance
             return self.findPaths()
 
@@ -151,38 +162,37 @@ def read_data(file) :
         forrest_map.append(row)
     return forrest_map
 
+
 def fork_at_position(position, forks : list[Trailfork]) -> Trailfork:
     for fork in forks :
         if fork.position == position :
             return fork
     return None
 
-def update_distances(forks : list[Trailfork]):
-    added = 1
-    while added :
-        added = 0
-        for fork in forks :
-            added += fork.updateDistance()
 
-def main() :
-    forrest_map = read_data('day23/example')
+def print_longest_path(visited, forrest_map, token) :
+    this_map = copy.deepcopy(forrest_map)
+    for x, y in visited :
+        this_map[y][x] = token
+    return this_map
 
-    '''
-    Part 1
-    Basically apply Dijkstra but instead of finding the shortest path, find the longest.
-    Discard and found paths going uphill.
-    0. Explore all paths from the Trailfork with the HIGHEST score.
-    1. From the Trailfork, find all possible Paths.
-    2. Explore each path until the it reaches a Trailfork or the goal.
-        a. If the fork is unvisited, set the present score
-        b. If the fork has never been seen, set the highest score.
-        c. If a paths goes uphill, don't update the fork.
-    4. (Not Dijkstra), continue to explore until no more unchartered paths can be found.
-    5. If at the goal, do not explore new paths, (instead we try to reach this point)
 
-    When all paths have been explored, the "goal" trailfork should contain the longest path.
-    '''
+def print_map(this_map) :
+    for line in this_map :
+        print(''.join([c for c in line]))
 
+
+def find_duplicates(data : list) :
+    seen = set()
+    dupes = []
+    for x in data :
+        if x in seen:
+            dupes.append(x)
+        else:
+            seen.add(x)
+    return dupes
+
+def solve (forrest_map) :
     startPosition = (1, 0)
     startFork = Trailfork(startPosition, 0, None, forrest_map)
     forks = [startFork]
@@ -199,18 +209,59 @@ def main() :
                 continue
 
             # Update distances
-            fork = fork_at_position(fork_position, forks)
-            if fork is not None :
-                pathQueue.extend(fork.updateDistance(path))
+            new_fork = fork_at_position(fork_position, forks)
+            if new_fork is not None :
+                lst = new_fork.updateDistance(path)
+                if len(lst) > 0 :
+                    newForks.append(new_fork)
             else :
+
                 forks.append(Trailfork(fork_position, path.distance, path, forrest_map))
-                pathQueue.extend(forks[-1].findPaths())
+                newForks.append(forks[-1])
+
+        longest = forks[0]
+        for fork in forks :
+            if fork.distance > longest.distance :
+                longest = fork
+        # new_map = print_longest_path(longest.longestVisited, forrest_map, 'o')
+        # new_map = print_longest_path([longest.position], new_map, '+')
+        # print_map(new_map)
+        # print(f"Distance: {longest.distance}")
 
     goalPosition = (len(forrest_map[0]) - 2, len(forrest_map) - 1)
-
     endFork = fork_at_position(goalPosition, forks)
-    print(f"Part 1: {endFork.distance}")
 
+    new_map = print_longest_path(endFork.longestVisited, forrest_map, 'o')
+    print('')
+    fork_points = [fork.position for fork in forks]
+    new_map = print_longest_path(fork_points, new_map, '+')
+    print_map(new_map)
+
+    print(f"Length: {len(set(endFork.longestVisited)) - 1}")
+
+    dupes = find_duplicates(endFork.longestVisited)
+    print(f"Duplicates {dupes}")
+
+    return endFork.distance
+
+
+def main() :
+    forrest_map = read_data('day23/input')
+
+    result = solve(forrest_map)
+    print(f"Part 1: {result}")
+
+    to_be_removed = set(['<', '>', 'v', '^'])
+    for y, line in enumerate(forrest_map) :
+        for x, c in enumerate(line) :
+            if c in to_be_removed :
+                forrest_map[y][x] = '.'
+
+    result = solve(forrest_map)
+    print(f"Part 2: {result}")
 
 if __name__ == '__main__' :
     main()
+
+# 7706 is to high
+# 7698 is to high
